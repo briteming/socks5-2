@@ -2,15 +2,15 @@ use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str;
 
-const debug: bool = true;
+const DEBUG: bool = true;
 
-const IPv4Addr: u8 = 0x1;
-const DomainAddr: u8 = 0x3;
-const IPv6Addr: u8 = 0x4;
+const IPV4_ADDR: u8 = 0x1;
+const DOMAIN_ADDR: u8 = 0x3;
+const IPV6_ADDR: u8 = 0x4;
 
-const ipv4Len: usize = 4;
-const ipv6Len: usize = 16;
-const portLen: usize = 2;
+const IPV4_LEN: usize = 4;
+const IPV6_LEN: usize = 16;
+const PORT_LEN: usize = 2;
 
 // +------+----------+----------+
 // | ATYP | DST.ADDR | DST.PORT |
@@ -36,28 +36,26 @@ const portLen: usize = 2;
 
 // (raw []byte, addr string, err error)
 pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<SocketAddr> {
-    let mut raw = [0u8; 260];
+    let mut raw = [0u8; 1];
 
-    let mut pos = 1;
-    r.read_exact(&mut raw[0..pos]);
+    let _ = r.read_exact(&mut raw[0..1]);
 
     let atyp = raw[0];
-    if debug {
+    if DEBUG {
         println!("ATYP {}", atyp);
     }
 
-    let mut rawAddrLen = portLen;
+    let mut raw_addr_len = PORT_LEN;
     match atyp {
-        IPv4Addr => {
-            rawAddrLen = rawAddrLen + ipv4Len;
+        IPV4_ADDR => {
+            raw_addr_len = raw_addr_len + IPV4_LEN;
         }
-        DomainAddr => {
-            r.read_exact(&mut raw[pos..pos + 1]);
-            rawAddrLen = rawAddrLen + raw[pos] as usize;
-            pos = pos + 1;
+        DOMAIN_ADDR => {
+            let _ = r.read_exact(&mut raw[0..1]);
+            raw_addr_len = raw_addr_len + raw[0] as usize;
         }
-        IPv6Addr => {
-            rawAddrLen = rawAddrLen + ipv6Len;
+        IPV6_ADDR => {
+            raw_addr_len = raw_addr_len + IPV6_LEN;
         }
         _ => {
             println!("unsupported address type");
@@ -65,30 +63,30 @@ pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<SocketAddr> {
         }
     }
 
-    let mut rawAddr = [0u8; 260];
-    r.read_exact(&mut rawAddr[0..rawAddrLen]);
+    let mut raw_addr = [0u8; 260];
+    let _ = r.read_exact(&mut raw_addr[0..raw_addr_len]);
 
-    let port = rawAddr[rawAddrLen - portLen] as u16 * 256 + rawAddr[rawAddrLen - 1] as u16;
+    let port = raw_addr[raw_addr_len - PORT_LEN] as u16 * 256 + raw_addr[raw_addr_len - 1] as u16;
     println!("Port {}", port);
     match atyp {
-        IPv4Addr => {
-            let ip = Ipv4Addr::new(rawAddr[0], rawAddr[1], rawAddr[2], rawAddr[3]);
+        IPV4_ADDR => {
+            let ip = Ipv4Addr::new(raw_addr[0], raw_addr[1], raw_addr[2], raw_addr[3]);
             println!("{}", ip);
             return Ok(SocketAddr::V4(SocketAddrV4::new(ip, port)));
         }
-        DomainAddr => {
-            let host = str::from_utf8(&rawAddr[0..rawAddrLen - portLen]).unwrap().to_string();
-            println!("DomainAddr {}", host);
+        DOMAIN_ADDR => {
+            let host = str::from_utf8(&raw_addr[0..raw_addr_len - PORT_LEN]).unwrap().to_string();
+            println!("DOMAIN_ADDR {}", host);
         }
-        IPv6Addr => {
-            let ip = Ipv6Addr::new(rawAddr[0] as u16 * 256 + rawAddr[1] as u16,
-                                   rawAddr[2] as u16 * 256 + rawAddr[3] as u16,
-                                   rawAddr[4] as u16 * 256 + rawAddr[5] as u16,
-                                   rawAddr[6] as u16 * 256 + rawAddr[7] as u16,
-                                   rawAddr[8] as u16 * 256 + rawAddr[9] as u16,
-                                   rawAddr[10] as u16 * 256 + rawAddr[11] as u16,
-                                   rawAddr[12] as u16 * 256 + rawAddr[13] as u16,
-                                   rawAddr[14] as u16 * 256 + rawAddr[15] as u16);
+        IPV6_ADDR => {
+            let ip = Ipv6Addr::new(raw_addr[0] as u16 * 256 + raw_addr[1] as u16,
+                                   raw_addr[2] as u16 * 256 + raw_addr[3] as u16,
+                                   raw_addr[4] as u16 * 256 + raw_addr[5] as u16,
+                                   raw_addr[6] as u16 * 256 + raw_addr[7] as u16,
+                                   raw_addr[8] as u16 * 256 + raw_addr[9] as u16,
+                                   raw_addr[10] as u16 * 256 + raw_addr[11] as u16,
+                                   raw_addr[12] as u16 * 256 + raw_addr[13] as u16,
+                                   raw_addr[14] as u16 * 256 + raw_addr[15] as u16);
             println!("Ipv6 {}", ip);
             return Ok(SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0)));
         }
@@ -112,14 +110,14 @@ pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<SocketAddr> {
 
 // 	if ip == nil {
 // 		l := len(host)
-// 		addrBytes = append(addrBytes, DomainAddr)
+// 		addrBytes = append(addrBytes, DOMAIN_ADDR)
 // 		addrBytes = append(addrBytes, byte(l))
 // 		addrBytes = append(addrBytes, []byte(host)...)
 // 	} else if len(ip) == 4 {
-// 		addrBytes = append(addrBytes, IPv4Addr)
+// 		addrBytes = append(addrBytes, IPV4_ADDR)
 // 		addrBytes = append(addrBytes, []byte(ip)...)
 // 	} else if len(ip) == 16 {
-// 		addrBytes = append(addrBytes, IPv6Addr)
+// 		addrBytes = append(addrBytes, IPV6_ADDR)
 // 		addrBytes = append(addrBytes, []byte(ip)...)
 // 	}
 // 	p, err := strconv.Atoi(port)

@@ -1,7 +1,7 @@
 use std::net::{TcpListener, TcpStream};
 use std::thread;
-use std::io::Read;
-use std::str;
+// use std::io::Read;
+// use std::str;
 
 mod socks5;
 use socks5::socks5::TCPRelay;

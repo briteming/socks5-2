@@ -3,7 +3,6 @@
 // Package socks5 implements socks5 proxy protocol.
 
 use std::net::{TcpStream, Shutdown};
-use std::io;
 use std::io::Read;
 use std::io::Write;
 
@@ -26,10 +25,10 @@ pub struct TCPRelay {
 
 impl TCPRelay {
     // TCPRelay::new creates a new Socks5 TCPRelay.
-    pub fn new(conn: TcpStream, mikaServer: String) -> TCPRelay {
+    pub fn new(conn: TcpStream, mika_server: String) -> TCPRelay {
         TCPRelay {
             conn: conn,
-            ss_server: mikaServer,
+            ss_server: mika_server,
             closed: false,
         }
     }
@@ -39,10 +38,10 @@ impl TCPRelay {
         // if !s.closed {
         // s.conn.Close()
         // }
-        self.handShake();
+        self.hand_shake();
 
-        self.parseRequest();
-        // let cmd, rawAddr, addr := self.parseRequest();
+        self.parse_request();
+        // let cmd, raw_addr, addr := self.parse_request();
         // // if err != nil {
         // // 	utils.Errorf("Parse request error %v\n", err)
         // // 	return
@@ -53,14 +52,14 @@ impl TCPRelay {
 
         // match cmd {
         //  CONNECT=>{
-        //     self.connect(rawAddr);
+        //     self.connect(raw_addr);
         // },
         // UDP_ASSOCIATE =>
         // 	self.udpAssociate(),
         //  BIND =>
         //  // error
         // }
-        self.conn.shutdown(Shutdown::Both);
+        let _ = self.conn.shutdown(Shutdown::Both);
     }
 
     // version identifier/method selection message
@@ -75,10 +74,10 @@ impl TCPRelay {
     // +----+--------+
     // |  1 |   1    |
     // +----+--------+
-    // handShake dail handshake between socks5 client and socks5 server.
-    fn handShake(&mut self) {
+    // hand_shake dail hand_shake between socks5 client and socks5 server.
+    fn hand_shake(&mut self) {
         let mut raw = [0u8; 257];
-        self.conn.read_exact(&mut raw[0..2]);
+        let _ = self.conn.read_exact(&mut raw[0..2]);
         // get socks version
         let ver = raw[0];
         if DEBUG {
@@ -96,11 +95,11 @@ impl TCPRelay {
             println!("Socks method {}", nmethods);
         }
 
-        self.conn.read_exact(&mut raw[2..2 + nmethods]);
+        let _ = self.conn.read_exact(&mut raw[2..2 + nmethods]);
 
         // reply to socks5 client
         let resp: [u8; 2] = [SOCKSV5, 0x00];
-        self.conn.write(&resp);
+        let _ = self.conn.write(&resp);
     }
 
     // The SOCKS request is formed as follows:
@@ -123,10 +122,10 @@ impl TCPRelay {
     //           o  DST.ADDR       desired destination address
     //           o  DST.PORT desired destination port in network octet order
 
-    // getCmd gets the cmd requested by socks5 client.
-    fn getCmd(&mut self) -> u8 {
+    // get_cmd gets the cmd requested by socks5 client.
+    fn get_cmd(&mut self) -> u8 {
         let mut raw = [0u8; 3];
-        self.conn.read_exact(&mut raw);
+        let _ = self.conn.read_exact(&mut raw);
         // if err != nil {
         // 	return
         // }
@@ -140,9 +139,9 @@ impl TCPRelay {
         return raw[1];
     }
 
-    // parseRequest parses socks5 client request.
-    fn parseRequest(&mut self) {
-        let cmd = self.getCmd();
+    // parse_request parses socks5 client request.
+    fn parse_request(&mut self) {
+        let cmd = self.get_cmd();
 
         println!("Cmd {}", cmd);
 
@@ -155,8 +154,8 @@ impl TCPRelay {
             }
         }
 
-        address::get_address(&mut self.conn);
-        // let rawAddr, addr, err = utils.GetAddress(s.conn)
+        let _ = address::get_address(&mut self.conn);
+        // let raw_addr, addr, err = utils.GetAddress(s.conn)
         // if err != nil {
         // 	return;
         // }
@@ -189,15 +188,15 @@ impl TCPRelay {
     // //           o  BND.ADDR       server bound address
     // //           o  BND.PORT       server bound port in network octet order
     // fn reply(&self) {
-    //     let resp:[u8;10] = [socksv5, 0x00, 0x00, utils.IPv4Addr, 0x00, 0x00, 0x00, 0x00, 0x10, 0x10];
+    //     let resp:[u8;10] = [socksv5, 0x00, 0x00, utils.IPV4_ADDR, 0x00, 0x00, 0x00, 0x00, 0x10, 0x10];
     // 	s.conn.Write(resp);
     // }
 
     // // connect handles CONNECT cmd
     // // Here is a bit magic. It acts as a mika client that redirects conntion to mika server.
-    // fn connect(&self, rawAddr: &[u8]) -> error {
+    // fn connect(&self, raw_addr: &[u8]) -> error {
     // 	// TODO Dail("tcp", rawAdd) would be more reasonable.
-    // 	// mikaConn, err := mika.DailWithRawAddr("kcp", s.ssServer, rawAddr, s.cipher);
+    // 	// mikaConn, err := mika.DailWithraw_addr("kcp", s.ssServer, raw_addr, s.cipher);
     // 	// if err != nil {
     // 	// 	return;
     // 	// }
@@ -216,7 +215,7 @@ impl TCPRelay {
 
     // // udpAssociate handles UDP_ASSOCIATE cmd
     // fn udpAssociate(&self) {
-    //         let resp:[u8;10] = [socksv5, 0x00, 0x00, utils.IPv4Addr, 0x00, 0x00, 0x00, 0x00, 0x04, 0x38];
+    //         let resp:[u8;10] = [socksv5, 0x00, 0x00, utils.IPV4_ADDR, 0x00, 0x00, 0x00, 0x00, 0x04, 0x38];
     // 	self.conn.Write(resp);
     // }
 }

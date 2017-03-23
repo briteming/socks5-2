@@ -41,18 +41,17 @@ impl TCPRelay {
         self.hand_shake();
 
         // get cmd and address
-        self.parse_request();
+        let cmd = self.parse_request();
         self.reply();
 
-        // match cmd {
-        //  CONNECT=>{
-        //     self.connect(raw_addr);
-        // },
-        // UDP_ASSOCIATE =>
-        // 	self.udp_associate(),
-        //  BIND =>
-        //  // error
-        // }
+        match cmd {
+            CONNECT => {;
+                // self.connect(raw_addr);
+            }
+            UDP_ASSOCIATE => self.udp_associate(),
+            BIND => {}
+            _ => {}
+        }
         let _ = self.conn.shutdown(Shutdown::Both);
     }
 
@@ -128,7 +127,7 @@ impl TCPRelay {
     }
 
     // parse_request parses socks5 client request.
-    fn parse_request(&mut self) {
+    fn parse_request(&mut self) -> u8 {
         let cmd = self.get_cmd();
 
         println!("Cmd {}", cmd);
@@ -138,11 +137,12 @@ impl TCPRelay {
             CONNECT | BIND | UDP_ASSOCIATE => {}
             _ => {
                 println!("unknow cmd type");
-                return;
+                return cmd;
             }
         }
 
         let _ = address::get_address(&mut self.conn);
+        cmd
     }
 
     // returns a reply formed as follows:

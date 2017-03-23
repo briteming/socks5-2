@@ -2,15 +2,16 @@ use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str;
 
+
 const DEBUG: bool = true;
 
-const IPV4_ADDR: u8 = 0x1;
-const DOMAIN_ADDR: u8 = 0x3;
-const IPV6_ADDR: u8 = 0x4;
+pub const IPV4_ADDR: u8 = 0x1;
+pub const DOMAIN_ADDR: u8 = 0x3;
+pub const IPV6_ADDR: u8 = 0x4;
 
-const IPV4_LEN: usize = 4;
-const IPV6_LEN: usize = 16;
-const PORT_LEN: usize = 2;
+pub const IPV4_LEN: usize = 4;
+pub const IPV6_LEN: usize = 16;
+pub const PORT_LEN: usize = 2;
 
 // +------+----------+----------+
 // | ATYP | DST.ADDR | DST.PORT |

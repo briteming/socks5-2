@@ -40,22 +40,16 @@ impl TCPRelay {
         // }
         self.hand_shake();
 
+        // get cmd and address
         self.parse_request();
-        // let cmd, raw_addr, addr := self.parse_request();
-        // // if err != nil {
-        // // 	utils.Errorf("Parse request error %v\n", err)
-        // // 	return
-        // // }
-
-        // // utils.Infof("Proxy connection to %s\n", string(addr))
-        // self.reply();
+        self.reply();
 
         // match cmd {
         //  CONNECT=>{
         //     self.connect(raw_addr);
         // },
         // UDP_ASSOCIATE =>
-        // 	self.udpAssociate(),
+        // 	self.udp_associate(),
         //  BIND =>
         //  // error
         // }
@@ -86,7 +80,6 @@ impl TCPRelay {
 
         if ver != SOCKSV5 {
             println!("Error version {}", ver);
-            // return fmt.Errorf("error socks version %d", ver)
         }
 
         // read all method identifier octets
@@ -98,8 +91,7 @@ impl TCPRelay {
         let _ = self.conn.read_exact(&mut raw[2..2 + nmethods]);
 
         // reply to socks5 client
-        let resp: [u8; 2] = [SOCKSV5, 0x00];
-        let _ = self.conn.write(&resp);
+        let _ = self.conn.write(&[SOCKSV5, 0x00]);
     }
 
     // The SOCKS request is formed as follows:
@@ -126,15 +118,11 @@ impl TCPRelay {
     fn get_cmd(&mut self) -> u8 {
         let mut raw = [0u8; 3];
         let _ = self.conn.read_exact(&mut raw);
-        // if err != nil {
-        // 	return
-        // }
 
         // get socks version
         let ver = raw[0];
         if ver != SOCKSV5 {
             println!("Error version {}", ver);
-            // return 0, fmt.Errorf("error socks version %d", ver)
         }
         return raw[1];
     }
@@ -155,42 +143,47 @@ impl TCPRelay {
         }
 
         let _ = address::get_address(&mut self.conn);
-        // let raw_addr, addr, err = utils.GetAddress(s.conn)
-        // if err != nil {
-        // 	return;
-        // }
     }
 
-    // // returns a reply formed as follows:
-    // //         +----+-----+-------+------+----------+----------+
-    // //         |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |
-    // //         +----+-----+-------+------+----------+----------+
-    // //         | 1  |  1  | X’00’ |  1   | Variable |    2     |
-    // //         +----+-----+-------+------+----------+----------+
-    // // Where:
-    // //           o  VER    protocol version: X’05’
-    // //           o  REP    Reply field:
-    // //              o  X’00’ succeeded
-    // //              o  X’01’ general SOCKS server failure
-    // //              o  X’02’ connection not allowed by ruleset
-    // //              o  X’03’ Network unreachable
-    // //              o  X’04’ Host unreachable
-    // //              o  X’05’ Connection refused
-    // //              o  X’06’ TTL expired
-    // //              o  X’07’ Command not supported
-    // //              o  X’08’ Address type not supported
-    // //              o  X’09’ to X’FF’ unassigned
-    // //           o  RSV    RESERVED
-    // //           o  ATYP   address type of following address
-    // //              o  IP V4 address: X’01’
-    // //              o  DOMAINNAME: X’03’
-    // //              o  IP V6 address: X’04’
-    // //           o  BND.ADDR       server bound address
-    // //           o  BND.PORT       server bound port in network octet order
-    // fn reply(&self) {
-    //     let resp:[u8;10] = [socksv5, 0x00, 0x00, utils.IPV4_ADDR, 0x00, 0x00, 0x00, 0x00, 0x10, 0x10];
-    // 	s.conn.Write(resp);
-    // }
+    // returns a reply formed as follows:
+    //         +----+-----+-------+------+----------+----------+
+    //         |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |
+    //         +----+-----+-------+------+----------+----------+
+    //         | 1  |  1  | X’00’ |  1   | Variable |    2     |
+    //         +----+-----+-------+------+----------+----------+
+    // Where:
+    //           o  VER    protocol version: X’05’
+    //           o  REP    Reply field:
+    //              o  X’00’ succeeded
+    //              o  X’01’ general SOCKS server failure
+    //              o  X’02’ connection not allowed by ruleset
+    //              o  X’03’ Network unreachable
+    //              o  X’04’ Host unreachable
+    //              o  X’05’ Connection refused
+    //              o  X’06’ TTL expired
+    //              o  X’07’ Command not supported
+    //              o  X’08’ Address type not supported
+    //              o  X’09’ to X’FF’ unassigned
+    //           o  RSV    RESERVED
+    //           o  ATYP   address type of following address
+    //              o  IP V4 address: X’01’
+    //              o  DOMAINNAME: X’03’
+    //              o  IP V6 address: X’04’
+    //           o  BND.ADDR       server bound address
+    //           o  BND.PORT       server bound port in network octet order
+    fn reply(&mut self) {
+        println!("Reply socks5 client");
+        let _ = self.conn.write(&[SOCKSV5,
+                                  0x00,
+                                  0x00,
+                                  address::IPV4_ADDR,
+                                  0x00,
+                                  0x00,
+                                  0x00,
+                                  0x00,
+                                  0x10,
+                                  0x10]);
+    }
 
     // // connect handles CONNECT cmd
     // // Here is a bit magic. It acts as a mika client that redirects conntion to mika server.
@@ -213,9 +206,17 @@ impl TCPRelay {
     // 	self.closed = true;
     // }
 
-    // // udpAssociate handles UDP_ASSOCIATE cmd
-    // fn udpAssociate(&self) {
-    //         let resp:[u8;10] = [socksv5, 0x00, 0x00, utils.IPV4_ADDR, 0x00, 0x00, 0x00, 0x00, 0x04, 0x38];
-    // 	self.conn.Write(resp);
-    // }
+    // udp_associate handles UDP_ASSOCIATE cmd
+    fn udp_associate(&mut self) {
+        let _ = self.conn.write(&[SOCKSV5,
+                                  0x00,
+                                  0x00,
+                                  address::IPV4_ADDR,
+                                  0x00,
+                                  0x00,
+                                  0x00,
+                                  0x00,
+                                  0x04,
+                                  0x38]);
+    }
 }

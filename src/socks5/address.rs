@@ -13,6 +13,12 @@ pub const IPV4_LEN: usize = 4;
 pub const IPV6_LEN: usize = 16;
 pub const PORT_LEN: usize = 2;
 
+#[derive(Debug)]
+pub enum Address {
+    SocketAddr(SocketAddr),
+    DomainAddr(String, u16),
+}
+
 // +------+----------+----------+
 // | ATYP | DST.ADDR | DST.PORT |
 // +------+----------+----------+
@@ -35,8 +41,7 @@ pub const PORT_LEN: usize = 2;
 //			o  X’04’
 //    the address is a version-6 IP address, with a length of 16 octets.
 
-// (raw []byte, addr string, err error)
-pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<SocketAddr> {
+pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<Address> {
     let mut raw = [0u8; 1];
 
     let _ = r.read_exact(&mut raw[0..1]);
@@ -73,11 +78,12 @@ pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<SocketAddr> {
         IPV4_ADDR => {
             let ip = Ipv4Addr::new(raw_addr[0], raw_addr[1], raw_addr[2], raw_addr[3]);
             println!("{}", ip);
-            return Ok(SocketAddr::V4(SocketAddrV4::new(ip, port)));
+            Ok(Address::SocketAddr(SocketAddr::V4(SocketAddrV4::new(ip, port))))
         }
         DOMAIN_ADDR => {
             let host = str::from_utf8(&raw_addr[0..raw_addr_len - PORT_LEN]).unwrap().to_string();
             println!("DOMAIN_ADDR {}", host);
+            Ok(Address::DomainAddr(host, port))
         }
         IPV6_ADDR => {
             let ip = Ipv6Addr::new(raw_addr[0] as u16 * 256 + raw_addr[1] as u16,
@@ -89,12 +95,10 @@ pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<SocketAddr> {
                                    raw_addr[12] as u16 * 256 + raw_addr[13] as u16,
                                    raw_addr[14] as u16 * 256 + raw_addr[15] as u16);
             println!("Ipv6 {}", ip);
-            return Ok(SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0)));
+            Ok(Address::SocketAddr(SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0))))
         }
-        _ => {}
+        _ => Err(io::Error::new(io::ErrorKind::Other, "can't parse address")),
     }
-
-    return Err(io::Error::new(io::ErrorKind::Other, "can't parse address"));
 }
 
 // func ToAddr(addr string) []byte {

@@ -10,7 +10,10 @@ fn handle(stream: TcpStream) {
 }
 
 fn main() {
-    let listen = TcpListener::bind(("127.0.0.1", 1080)).unwrap();
+    let port = 1080u16;
+    let listen = TcpListener::bind(("127.0.0.1", port)).unwrap();
+
+    println!("Server listens at {}.", port);
     for stream in listen.incoming() {
         let s = stream.unwrap();
         thread::spawn(move || handle(s));

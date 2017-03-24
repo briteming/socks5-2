@@ -3,13 +3,16 @@
 // Package socks5 implements socks5 proxy protocol.
 
 use std::net::{TcpStream, Shutdown};
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::io;
+use std::str;
+use std::thread;
+use std::time;
 
 use socks5::address;
 
 const SOCKSV5: u8 = 0x05;
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 
 const CONNECT: u8 = 0x01;
 const BIND: u8 = 0x02;
@@ -41,18 +44,20 @@ impl TCPRelay {
         self.hand_shake();
 
         // get cmd and address
-        let cmd = self.parse_request();
+        let (cmd, addr) = self.parse_request().unwrap();
         self.reply();
 
         match cmd {
             CONNECT => {;
-                // self.connect(raw_addr);
+                self.connect(addr);
             }
             UDP_ASSOCIATE => self.udp_associate(),
             BIND => {}
             _ => {}
         }
-        let _ = self.conn.shutdown(Shutdown::Both);
+
+        println!("serve stopped");
+        // let _ = self.conn.shutdown(Shutdown::Both);
     }
 
     // version identifier/method selection message
@@ -127,22 +132,27 @@ impl TCPRelay {
     }
 
     // parse_request parses socks5 client request.
-    fn parse_request(&mut self) -> u8 {
+    fn parse_request(&mut self) -> io::Result<(u8, address::Address)> {
         let cmd = self.get_cmd();
 
-        println!("Cmd {}", cmd);
+        if DEBUG {
+            println!("Cmd {}", cmd);
+        }
 
         // check cmd type
         match cmd {
             CONNECT | BIND | UDP_ASSOCIATE => {}
             _ => {
                 println!("unknow cmd type");
-                return cmd;
+                return Err(io::Error::new(io::ErrorKind::Other, "unsupported address type"));
             }
         }
 
-        let _ = address::get_address(&mut self.conn);
-        cmd
+        let addr = address::get_address(&mut self.conn).unwrap();
+        if DEBUG {
+            println!("{:?}", addr);
+        }
+        Ok((cmd, addr))
     }
 
     // returns a reply formed as follows:
@@ -185,26 +195,51 @@ impl TCPRelay {
                                   0x10]);
     }
 
-    // // connect handles CONNECT cmd
-    // // Here is a bit magic. It acts as a mika client that redirects conntion to mika server.
-    // fn connect(&self, raw_addr: &[u8]) -> error {
-    // 	// TODO Dail("tcp", rawAdd) would be more reasonable.
-    // 	// mikaConn, err := mika.DailWithraw_addr("kcp", s.ssServer, raw_addr, s.cipher);
-    // 	// if err != nil {
-    // 	// 	return;
-    // 	// }
+    // connect handles CONNECT cmd
+    // Here is a bit magic. It acts as a mika client that redirects conntion to mika server.
+    fn connect(&mut self, addr: address::Address) {
+        // TODO Dail("tcp", rawAdd) would be more reasonable.
+        // mikaConn, err := mika.DailWithraw_addr("kcp", s.ssServer, raw_addr, s.cipher);
+        // if err != nil {
+        // 	return;
+        // }
 
-    // 	// defer func() {
-    // 	// 	if !s.closed {
-    // 	// 		err := mikaConn.Close()
-    // 	// 		utils.Errorf("Close connection error %v\n", err)
-    // 	// 	}
-    // 	// }()
+        let mut remote = TcpStream::connect(addr).unwrap();
+        let mut remote_copy = remote.try_clone().unwrap();
+        let mut client_copy = self.conn.try_clone().unwrap();
+        thread::spawn(move || {
+            let mut client_buffer = [0u8; 4096];
+            loop {
+                match client_copy.read(&mut client_buffer) {
+                    Ok(n) => {
+                        remote_copy.write(&client_buffer[0..n]).unwrap();
+                        // println!("read client write to client");
+                    }
+                    Err(error) => {
+                        println!("{}", error.to_string());
+                        return;
+                    }
+                }
+            }
+        });
+        let mut client_buffer = [0u8; 4096];
+        loop {
+            remote.set_read_timeout(Some(time::Duration::from_secs(10)));
+            match remote.read(&mut client_buffer) {
+                Ok(n) => {
+                    self.conn.write(&client_buffer[0..n]).unwrap();
+                    self.conn.set_write_timeout(Some(time::Duration::from_secs(10)));
+                    // println!("read remote write to client");
+                }
+                Err(error) => {
+                    println!("{}", error.to_string());
+                    return;
+                }
+            }
 
-    // 	// go protocols.Pipe(s.conn, mikaConn)
-    // 	// protocols.Pipe(mikaConn, s.conn)
-    // 	self.closed = true;
-    // }
+        }
+        // self.closed = true;
+    }
 
     // udp_associate handles UDP_ASSOCIATE cmd
     fn udp_associate(&mut self) {

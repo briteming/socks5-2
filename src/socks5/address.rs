@@ -1,9 +1,10 @@
 use std::io;
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
 use std::str;
+use std::vec;
 
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 
 pub const IPV4_ADDR: u8 = 0x1;
 pub const DOMAIN_ADDR: u8 = 0x3;
@@ -17,6 +18,16 @@ pub const PORT_LEN: usize = 2;
 pub enum Address {
     SocketAddr(SocketAddr),
     DomainAddr(String, u16),
+}
+
+impl ToSocketAddrs for Address {
+    type Iter = vec::IntoIter<SocketAddr>;
+    fn to_socket_addrs(&self) -> io::Result<vec::IntoIter<SocketAddr>> {
+        match self.clone() {
+            &Address::SocketAddr(addr) => Ok(vec![addr].into_iter()),
+            &Address::DomainAddr(ref host, port) => (&host[..], port).to_socket_addrs(),
+        }
+    }
 }
 
 // +------+----------+----------+
@@ -73,7 +84,9 @@ pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<Address> {
     let _ = r.read_exact(&mut raw_addr[0..raw_addr_len]);
 
     let port = raw_addr[raw_addr_len - PORT_LEN] as u16 * 256 + raw_addr[raw_addr_len - 1] as u16;
-    println!("Port {}", port);
+    if DEBUG {
+        println!("Port {}", port);
+    }
     match atyp {
         IPV4_ADDR => {
             let ip = Ipv4Addr::new(raw_addr[0], raw_addr[1], raw_addr[2], raw_addr[3]);

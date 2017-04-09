@@ -8,6 +8,8 @@ use std::io;
 use std::str;
 use std::thread;
 use std::time;
+use socks5::byteorder::ReadBytesExt;
+
 
 use socks5::address;
 
@@ -38,9 +40,6 @@ impl TCPRelay {
 
     // serve handles connection between socks5 client and remote addr.
     pub fn serve(&mut self) {
-        // if !s.closed {
-        // s.conn.Close()
-        // }
         self.hand_shake();
 
         // get cmd and address
@@ -57,7 +56,7 @@ impl TCPRelay {
         }
 
         println!("serve stopped");
-        // let _ = self.conn.shutdown(Shutdown::Both);
+        let _ = self.conn.shutdown(Shutdown::Both);
     }
 
     // version identifier/method selection message
@@ -74,10 +73,8 @@ impl TCPRelay {
     // +----+--------+
     // hand_shake dail hand_shake between socks5 client and socks5 server.
     fn hand_shake(&mut self) {
-        let mut raw = [0u8; 257];
-        let _ = self.conn.read_exact(&mut raw[0..2]);
         // get socks version
-        let ver = raw[0];
+        let ver = self.conn.read_u8().unwrap();
         if DEBUG {
             println!("Socks version {}", ver);
         }
@@ -87,11 +84,12 @@ impl TCPRelay {
         }
 
         // read all method identifier octets
-        let nmethods: usize = raw[1] as usize;
+        let nmethods: usize = self.conn.read_u8().unwrap() as usize;
         if DEBUG {
             println!("Socks method {}", nmethods);
         }
 
+        let mut raw = [0u8; 257];
         let _ = self.conn.read_exact(&mut raw[2..2 + nmethods]);
 
         // reply to socks5 client
@@ -120,15 +118,11 @@ impl TCPRelay {
 
     // get_cmd gets the cmd requested by socks5 client.
     fn get_cmd(&mut self) -> u8 {
-        let mut raw = [0u8; 3];
-        let _ = self.conn.read_exact(&mut raw);
-
-        // get socks version
-        let ver = raw[0];
+        let ver = self.conn.read_u8().unwrap();
         if ver != SOCKSV5 {
             println!("Error version {}", ver);
         }
-        return raw[1];
+        return self.conn.read_u8().unwrap();;
     }
 
     // parse_request parses socks5 client request.
@@ -224,11 +218,11 @@ impl TCPRelay {
         });
         let mut client_buffer = [0u8; 4096];
         loop {
-            remote.set_read_timeout(Some(time::Duration::from_secs(10)));
+            let _ = remote.set_read_timeout(Some(time::Duration::from_secs(10)));
             match remote.read(&mut client_buffer) {
                 Ok(n) => {
                     self.conn.write(&client_buffer[0..n]).unwrap();
-                    self.conn.set_write_timeout(Some(time::Duration::from_secs(10)));
+                    let _ = self.conn.set_write_timeout(Some(time::Duration::from_secs(10)));
                     // println!("read remote write to client");
                 }
                 Err(error) => {

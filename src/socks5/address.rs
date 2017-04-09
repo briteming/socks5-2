@@ -2,7 +2,7 @@ use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
 use std::str;
 use std::vec;
-
+use socks5::byteorder::{BigEndian, ReadBytesExt};
 
 const DEBUG: bool = false;
 
@@ -12,7 +12,7 @@ pub const IPV6_ADDR: u8 = 0x4;
 
 pub const IPV4_LEN: usize = 4;
 pub const IPV6_LEN: usize = 16;
-pub const PORT_LEN: usize = 2;
+// pub const PORT_LEN: usize = 2;
 
 #[derive(Debug)]
 pub enum Address {
@@ -51,42 +51,30 @@ impl ToSocketAddrs for Address {
 //    follow, there is no terminating NUL octet.
 //			o  X’04’
 //    the address is a version-6 IP address, with a length of 16 octets.
-
 pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<Address> {
-    let mut raw = [0u8; 1];
-
-    let _ = r.read_exact(&mut raw[0..1]);
-
-    let atyp = raw[0];
+    let atyp = r.read_u8()?;
     if DEBUG {
         println!("ATYP {}", atyp);
     }
 
-    let mut raw_addr_len = PORT_LEN;
-    match atyp {
-        IPV4_ADDR => {
-            raw_addr_len = raw_addr_len + IPV4_LEN;
-        }
-        DOMAIN_ADDR => {
-            let _ = r.read_exact(&mut raw[0..1]);
-            raw_addr_len = raw_addr_len + raw[0] as usize;
-        }
-        IPV6_ADDR => {
-            raw_addr_len = raw_addr_len + IPV6_LEN;
-        }
+    let raw_addr_len = match atyp {
+        IPV4_ADDR => IPV4_LEN,
+        DOMAIN_ADDR => r.read_u8().unwrap() as usize,
+        IPV6_ADDR => IPV6_LEN,
         _ => {
             println!("unsupported address type");
             return Err(io::Error::new(io::ErrorKind::Other, "unsupported address type"));
         }
-    }
+    };
 
     let mut raw_addr = [0u8; 260];
     let _ = r.read_exact(&mut raw_addr[0..raw_addr_len]);
 
-    let port = raw_addr[raw_addr_len - PORT_LEN] as u16 * 256 + raw_addr[raw_addr_len - 1] as u16;
+    let port = r.read_u16::<BigEndian>().unwrap();
     if DEBUG {
         println!("Port {}", port);
     }
+
     match atyp {
         IPV4_ADDR => {
             let ip = Ipv4Addr::new(raw_addr[0], raw_addr[1], raw_addr[2], raw_addr[3]);
@@ -94,7 +82,7 @@ pub fn get_address<T: io::Read>(r: &mut T) -> io::Result<Address> {
             Ok(Address::SocketAddr(SocketAddr::V4(SocketAddrV4::new(ip, port))))
         }
         DOMAIN_ADDR => {
-            let host = str::from_utf8(&raw_addr[0..raw_addr_len - PORT_LEN]).unwrap().to_string();
+            let host = str::from_utf8(&raw_addr[0..raw_addr_len]).unwrap().to_string();
             println!("DOMAIN_ADDR {}", host);
             Ok(Address::DomainAddr(host, port))
         }
